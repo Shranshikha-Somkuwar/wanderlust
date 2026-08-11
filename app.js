@@ -24,15 +24,6 @@ const userRouter = require("./routes/user.js");
 const dbUrl = process.env.ATLASDB_URL;
 
 
-
-main()
-.then(()=> {
-            console.log("connected to DB");
-})
-.catch((err) => {
-            console.log(err);
-});
-
 async function main() {
             await mongoose.connect(dbUrl);
 }
@@ -43,6 +34,8 @@ app.use(express.urlencoded({extended: true}));
 app.use(methodOverride("_method"));
 app.engine("ejs", ejsMate);
 app.use(express.static(path.join(__dirname, "/public")));
+
+app.set("trust proxy", 1);
 
 
 
@@ -55,26 +48,28 @@ const store = MongoStore.create({
 
 });
 
-store.on("error", () => {
-       console.log("ERROR in MONGO SESSSION STORE", err);
+store.on("error", (err) => {
+    console.log("ERROR in MONGO SESSION STORE", err);
 });
 
 const sessionOptions = {
        store,
        secret: process.env.SECRET,
        resave: false,
-       saveUninitialized: true,
+       saveUninitialized: false,
        cookie: {
-       expires: Date.now() + 7 * 24 * 60 *60 * 1000,
+       // expires: Date.now() + 7 * 24 * 60 *60 * 1000,
        maxAge: 7 * 24 * 60 * 60 * 1000,
        httpOnly: true,
+       secure: process.env.NODE_ENV === "production",
        },
 };
 
 
-// app.get("/", (req, res) => {
-//             res.send("Hi, I am root");
-// });
+
+app.get("/", (req, res) => {
+    res.redirect("/listings");
+});
 
 
 
@@ -98,17 +93,6 @@ app.use((req, res, next) => {
        next();
 });
 
-app.get("/demouser", async (req, res) => {
-       let fakeUser = new User ({
-              email: "abc@gmail.com",
-              username: "Shikha"
-       });
-
-      let registerdUser = await  User.register(fakeUser, "helloworld!");
-      res.send(registerdUser);
-});
-
-
 
 app.use("/listings", listingRouter);
 app.use("/listings/:id/reviews", reviewRouter);
@@ -122,16 +106,21 @@ app.all("*", (req, res, next) => {
 app.use((err, req, res, next) => {
        let { statusCode = 500, message = "Something went wrong!!" } = err;
        res.status(statusCode).render("error.ejs", { message });
-       // res.status(statusCode).send(message);
+      
        
 });
 
-// app.listen(8080, () => {
-//             console.log("server is listening to port 8080");
-// });
-
 const port = process.env.PORT || 8080;
 
-app.listen(port, () => {
-    console.log(`server is listening on port ${port}`);
-});
+main()
+    .then(() => {
+        console.log("connected to DB");
+
+        app.listen(port, () => {
+            console.log(`server is listening on port ${port}`);
+        });
+    })
+    .catch((err) => {
+        console.log("Database connection failed:", err);
+    });
+
